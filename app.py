@@ -17,7 +17,7 @@ CLIENT_SECRET = os.getenv("CLIENT_SECRET")
 REDIRECT_URI = os.getenv("REDIRECT_URI")
 ENVIRONMENT = os.getenv("ENVIRONMENT")
 
-# Production vs Sandbox API URL
+# Determine API base URL
 if ENVIRONMENT == "sandbox":
     BASE_URL = "https://sandbox-quickbooks.api.intuit.com"
 else:
@@ -25,11 +25,11 @@ else:
 
 TOKEN_URL = "https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer"
 
-# Temporary in-memory storage
+# In-memory token storage (fine for internal app)
 tokens = {}
 
 # ===============================
-# LOGIN
+# LOGIN ROUTE
 # ===============================
 @app.route("/login")
 def login():
@@ -49,7 +49,7 @@ def login():
     return redirect(auth_url)
 
 # ===============================
-# CALLBACK
+# CALLBACK ROUTE
 # ===============================
 @app.route("/callback")
 def callback():
@@ -83,7 +83,7 @@ def callback():
     tokens["refresh_token"] = token_data["refresh_token"]
     tokens["realm_id"] = request.args.get("realmId")
 
-    return jsonify({"message": "Login successful"})
+    return redirect("/open-pos")
 
 # ===============================
 # REFRESH TOKEN
@@ -119,7 +119,7 @@ def get_open_pos():
     realm_id = tokens.get("realm_id")
 
     if not access_token:
-        return "Not authenticated. Please login.", 401
+        return redirect("/login")
 
     headers = {
         "Authorization": f"Bearer {access_token}",
@@ -144,9 +144,10 @@ def get_open_pos():
     data = response.json()
     pos = data.get("QueryResponse", {}).get("PurchaseOrder", [])
 
+    # Filter only open POs
     open_pos = [po for po in pos if po.get("POStatus") == "Open"]
 
-    # Build simple HTML table
+    # Build simple HTML dashboard
     html = """
     <h1>Open Purchase Orders</h1>
     <table border="1" cellpadding="8">
@@ -173,11 +174,21 @@ def get_open_pos():
     return html
 
 # ===============================
-# RUN
+# ROOT ROUTE
 # ===============================
+@app.route("/")
+def home():
+    return redirect("/open-pos")
+
+# ===============================
+# RUN APP
+# ===============================
+
 port = int(os.environ.get("PORT", 5000))
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=port)
+
+
 
 
